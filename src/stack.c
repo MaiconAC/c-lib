@@ -1,95 +1,150 @@
 #include "../headers/stack.h"
-#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
 
 // nao precisa incluir o bool pois ja esta no header
 
-void stack_create(Stack* s)
+int stack_create(Stack* s)
 {
-	if (!s)
-	{
-		printf("Objeto da pilha inválido.\n");
-		return;
-	}
+	// Erro invalid argument
+	if (!s) return -EINVAL;
 
 	s->top = -1;
-}
+	s->capacity = INITIAL_SIZE;
+	s->items = malloc(s->capacity * sizeof(void*));
 
-bool stack_is_empty(Stack *s)
-{
-	if (!s)
+	// Erro ao alocar memoria (Out of memory)
+	// se nao conseguir inicializar a pilha, deixa ela inutilizável
+	if (!s->items)
 	{
-		printf("Objeto da pilha inválido.\n");
-		return false;
+		s->top = -2;
+		s-> items = NULL;
+		s->capacity = 0;
+		return -ENOMEM;
 	}
 
-	if (s->top == -1) return true;
-
-	return false;
+	return 0;
 }
 
-bool stack_is_full(Stack *s)
+int stack_destroy(Stack *s)
 {
-	if (!s)
-	{
-		printf("Objeto da pilha inválido.\n");
-		return false;
-	}
+	// Erro invalid argument
+	if (!s) return -EINVAL;
 
-	if (s->top == SIZE - 1) return true;
+	// Libera a memoria dos itens e zera a pilha
+	free(s->items);
+	s->top = -2;
+	s->capacity = 0;
+	s->items = NULL;
 
-	return false;
+	return 0;
 }
 
-void stack_push(Stack* s, int item)
+int stack_is_empty(const Stack *s, bool *response)
 {
-	if (!s)
-	{
-		printf("Objeto da pilha inválido.\n");
-		return;
-	}
+	// Erro invalid argument
+	if (!s || !response || s->top == -2) return -EINVAL;
+
+	*response = s->top == -1;
+
+	return 0;
+}
+
+int stack_is_full(const Stack *s, bool *response)
+{
+	// Erro invalid argument
+	if (!s || !response || s->top == -2) return -EINVAL;
+
+	*response = s->top == s->capacity - 1;
+
+	return 0;
+}
+
+// usando void*, a pilha passa a armazenar apenas o edereço do valor
+int stack_push(Stack* s, void* item)
+{
+	// Erro invalid argument
+	if (!s || s->top == -2) return -EINVAL;
 	
-	if (stack_is_full(s))
+	// Valida se a pilha esta cheia
+	bool stack_full = false;
+	int ret = stack_is_full(s, &stack_full);
+
+	if (ret != 0) return ret;
+
+	if (stack_full)
 	{
-		printf("A pilha está cheia!\n");
-		return;
+		s->capacity = s->capacity * GROWTH_FACTOR;
+
+		void **newPointer = realloc(s->items, s->capacity * sizeof(void *)); 
+		
+		// Erro ao realocar a pilha (out of memory)
+		if (!newPointer) 
+		{
+			return -ENOMEM;
+		}
+
+		// só substitui o ponteiro realocado após ter certeza que não teve erro
+		s->items = newPointer;
 	}
 
-	s->top++;
-	s->items[s->top] = item;
+	// Aumenta o top e adiciona o item
+	s->items[++s->top] = item;
+
+	return 0;
 }
 
-int stack_pop(Stack *s)
+int stack_pop(Stack *s, void **response)
 {
-	if (!s)
-	{
-		printf("Objeto da pilha inválido.\n");
-		return 0;
-	}
+	// Erro invalid argument
+	if (!s || !response || s->top == -2) return -EINVAL;
 
-	if (stack_is_empty(s))
+	// Valida se a pilha esta vazia
+	bool stack_empty = false;
+	int ret = stack_is_empty(s, &stack_empty);
+
+	if (ret != 0) return ret;
+
+	// Erro pilha vazia (No such entry)
+	if (stack_empty)
 	{
-		printf("A pilha está vazia!\n");
-		return 0;
+		return -ENOENT;
 	}
 
 	// retorna o valor do topo e ja diminui o top
-	return s->items[s->top--];	
+	*response = s->items[s->top--];	
+
+	return 0;
 }
 
-int stack_peek(Stack *s)
+int stack_peek(const Stack *s, void **response)
 {
-	if (!s)
+	// Erro invalid argument
+	if (!s || !response || s->top == -2) return -EINVAL;
+
+	// Valida se a pilha esta vazia
+	bool stack_empty = false;
+	int ret = stack_is_empty(s, &stack_empty);
+
+	if (ret != 0) return ret;
+
+	// Erro pilha vazia (No such entry)
+	if (stack_empty)
 	{
-		printf("Objeto da pilha inválido.\n");
-		return 0;
+		return -ENOENT;
 	}
 
-	if (stack_is_empty(s))
-	{
-		printf("A pilha está vazia!\n");
-		return 0;
-	}
+	*response = s->items[s->top];	
 
-	// retorna o valor do topo e ja diminui o top
-	return s->items[s->top];	
+	return 0;
+}
+
+int stack_size(const Stack *s, int *response)
+{
+	// Erro invalid argument
+	if (!s || !response || s->top == -2) return -EINVAL;
+
+	*response = s->top + 1;
+
+	return 0;
 }
