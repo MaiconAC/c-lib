@@ -64,7 +64,7 @@ int stack_is_full(const Stack *s, bool *response)
 int stack_push(Stack* s, void* item)
 {
 	// Erro invalid argument
-	if (!s || s->top == -2) return -EINVAL;
+	if (!s || !item || s->top == -2) return -EINVAL;
 	
 	// Valida se a pilha esta cheia
 	bool stack_full = false;
